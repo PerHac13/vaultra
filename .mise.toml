@@ -1,0 +1,100 @@
+
+# Mise configuration for Vaultra project
+
+[env]
+# Set environment variables for development
+VAULTRA_LOG_LEVEL = "debug"
+VAULTRA_ENV = "development"
+
+[tools]
+# Go 1.22+ (required for project)
+go = "1.22"
+
+# Node for any tooling that needs it (optional, can remove if not needed)
+# node = "20.10"
+
+[tasks.setup]
+description = "Setup development environment"
+dir = "."
+run = [
+  "mise install",
+  "go mod download",
+  "go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest",
+  "go install golang.org/x/tools/cmd/goimports@latest",
+]
+
+[tasks.build]
+description = "Build the project"
+dir = "."
+run = "make build"
+
+[tasks.run]
+description = "Build and run the project"
+dir = "."
+run = "make run"
+
+[tasks.test]
+description = "Run all tests"
+dir = "."
+run = "make test"
+
+[tasks.test-unit]
+description = "Run unit tests only"
+dir = "."
+run = "make test-unit"
+
+[tasks.test-integration]
+description = "Run integration tests"
+dir = "."
+run = "make test-integration"
+
+[tasks.fmt]
+description = "Format code"
+dir = "."
+run = "make fmt"
+
+[tasks.lint]
+description = "Lint code"
+dir = "."
+run = "make lint"
+
+[tasks.ci]
+description = "Run CI checks (fmt, lint, test)"
+dir = "."
+run = "make ci"
+
+[tasks.clean]
+description = "Clean build artifacts"
+dir = "."
+run = "make clean"
+
+[tasks.docker-up]
+description = "Start Docker containers (PostgreSQL, MySQL, MongoDB)"
+dir = "."
+run = "make docker-compose-up"
+
+[tasks.docker-down]
+description = "Stop Docker containers"
+dir = "."
+run = "make docker-compose-down"
+
+[tasks.docker-logs]
+description = "Show Docker logs"
+dir = "."
+run = "docker-compose -f deployments/docker-compose.yaml logs -f"
+
+[tasks.docs]
+description = "Open documentation"
+dir = "."
+run = "cat docs/ARCHITECTURE.md"
+
+[tasks.help]
+description = "Show available tasks"
+dir = "."
+run = "mise tasks"
+
+# Pre-commit hooks (optional)
+# These run automatically before certain operations
+[hooks]
+# Uncomment to enable pre-commit linting
+# pre-commit = "make fmt && make lint"
