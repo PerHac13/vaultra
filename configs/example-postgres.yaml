@@ -1,0 +1,22 @@
+app:
+  log_level: info
+  name: PostgreSQL Backup
+
+database:
+  type: postgres
+  config:
+    host: localhost
+    port: 5432
+    user: postgres
+    password: postgres_password
+    database: myapp_db
+    ssl_mode: disable
+
+storage:
+  type: local
+  config:
+    base_path: /backups/postgres
+
+compression:
+  algorithm: gzip
+  level: 6
