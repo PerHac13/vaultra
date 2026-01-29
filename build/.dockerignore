@@ -1,0 +1,16 @@
+.git
+.github
+.gitignore
+.vscode
+.idea
+*.md
+*.swp
+*.swo
+*~
+.DS_Store
+bin/
+coverage.out
+*.log
+test/
+docs/
+examples/
