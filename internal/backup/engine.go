@@ -45,7 +45,7 @@ type BackupResult struct {
 	Duration float64
 }
 
-func (e *Engine) CreateBackup(ctx context.Context, req BackupRequest) (*BackupResult, error) {
+func (e *Engine) Backup(ctx context.Context, req BackupRequest) (*BackupResult, error) {
 	startTime := time.Now()
 
 	e.logger.Info("Starting backup", "name", req.Name, "strategy", req.Strategy)
