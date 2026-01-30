@@ -6,7 +6,7 @@ func DefaultConfigSchema() *ConfigType {
 	return &ConfigType{
 		App: AppConfig{
 			Name:     "vaultra",
-			LogLevel: "INFO",
+			LogLevel: "info",
 		},
 		Compression: CompressionConfig{
 			Algorithm: "gzip",

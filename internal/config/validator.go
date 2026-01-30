@@ -28,14 +28,14 @@ func (v *Validator) Validator(cfg *ConfigType) error {
 	}
 
 	validLevels := map[string]bool{
-		"DEBUG": true,
-		"INFO":  true,
-		"WARN":  true,
-		"ERROR": true,
+		"debug": true,
+		"info":  true,
+		"warn":  true,
+		"error": true,
 	}
 
 	if !validLevels[cfg.App.LogLevel] {
-		errs = append(errs, "App.LogLevel must be one of: DEBUG, INFO, WARN, ERROR")
+		errs = append(errs, "App.LogLevel must be one of: debug, info, warn, error")
 	}
 
 	if err := v.validateDatabase(cfg.Database); err != nil {

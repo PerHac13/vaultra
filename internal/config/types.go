@@ -1,7 +1,7 @@
 package config
 
 type ConfigType struct {
-	App           AppConfig         `yaml:"app`
+	App           AppConfig         `yaml:"app"`
 	Database      DatabaseConfig    `yaml:"database"`
 	Storage       StorageConfig     `yaml:"storage"`
 	Compression   CompressionConfig `yaml:"compression"`
