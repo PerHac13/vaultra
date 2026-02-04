@@ -1,0 +1,27 @@
+app:
+  name: "MySQL Backup"
+  log_level: info
+
+database:
+  type: mysql
+  config:
+    host: localhost
+    port: 3306
+    user: vaultra
+    password: vaultra_dev_pass
+    database: vaultra_test
+    charset: utf8mb4
+
+storage:
+  type: local
+  config:
+    base_path: /backups/mysql
+
+compression:
+  algorithm: gzip
+  level: 6
+
+backup:
+  retention_days: 30
+  full_backup:
+    enabled: true
