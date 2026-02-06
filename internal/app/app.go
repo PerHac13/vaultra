@@ -8,6 +8,7 @@ import (
 	"github.com/PerHac13/vaultra/internal/config"
 	"github.com/PerHac13/vaultra/internal/db"
 	"github.com/PerHac13/vaultra/internal/db/mock"
+	"github.com/PerHac13/vaultra/internal/db/mysql"
 	"github.com/PerHac13/vaultra/internal/db/postgres"
 	"github.com/PerHac13/vaultra/internal/logging"
 	"github.com/PerHac13/vaultra/internal/repository"
@@ -60,6 +61,16 @@ func New(ctx context.Context, cfgFile string) (*App, error) {
 			SSLMode: 	 getMapString(cfg.Database.Config, "ssl_mode", "disable"),	
 		}
 		database = postgres.New(logger.Logger, pgConfig)
+	case "mqsql":
+		mysqlConfig := mysql.Config{
+			Host:     getMapString(cfg.Database.Config, "host", "localhost"),
+			Port:     getMapInt(cfg.Database.Config, "port", 3306),
+			User:     getMapString(cfg.Database.Config, "user", "root"),
+			Password: getMapString(cfg.Database.Config, "password", ""),
+			Database: getMapString(cfg.Database.Config, "database", ""),
+			Charset:  getMapString(cfg.Database.Config, "charset", "utf8mb4"),
+    	}
+		database = mysql.New(logger.Logger, mysqlConfig)
 	case "mock":
 		database = mock.NewMockDatabase(mock.ConfigType{
 			Data: []byte("mock data"),
