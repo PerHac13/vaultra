@@ -1,0 +1,27 @@
+app:
+  name: "MongoDB Backup"
+  log_level: info
+
+database:
+  type: mongodb
+  config:
+    host: localhost
+    port: 27017
+    username: vaultra
+    password: vaultra_dev_pass
+    database: vaultra_test
+    auth_database: admin
+
+storage:
+  type: local
+  config:
+    base_path: /backups/mongodb
+
+compression:
+  algorithm: gzip
+  level: 6
+
+backup:
+  retention_days: 30
+  full_backup:
+    enabled: true
