@@ -8,6 +8,7 @@ import (
 	"github.com/PerHac13/vaultra/internal/config"
 	"github.com/PerHac13/vaultra/internal/db"
 	"github.com/PerHac13/vaultra/internal/db/mock"
+	"github.com/PerHac13/vaultra/internal/db/mongodb"
 	"github.com/PerHac13/vaultra/internal/db/mysql"
 	"github.com/PerHac13/vaultra/internal/db/postgres"
 	"github.com/PerHac13/vaultra/internal/logging"
@@ -71,6 +72,17 @@ func New(ctx context.Context, cfgFile string) (*App, error) {
 			Charset:  getMapString(cfg.Database.Config, "charset", "utf8mb4"),
     	}
 		database = mysql.New(logger.Logger, mysqlConfig)
+	case "mongodb":
+		mongodbConfig := mongodb.Config{
+			Host:         getMapString(cfg.Database.Config, "host", "localhost"),
+			Port:         getMapInt(cfg.Database.Config, "port", 27017),
+			Username:     getMapString(cfg.Database.Config, "username", ""),
+			Password:     getMapString(cfg.Database.Config, "password", ""),
+			Database:     getMapString(cfg.Database.Config, "database", ""),
+			AuthDatabase: getMapString(cfg.Database.Config, "auth_database", "admin"),
+			URI:          getMapString(cfg.Database.Config, "uri", ""),
+		}
+		database = mongodb.New(logger.Logger, mongodbConfig)
 	case "mock":
 		database = mock.NewMockDatabase(mock.ConfigType{
 			Data: []byte("mock data"),
