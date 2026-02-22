@@ -17,6 +17,7 @@ import (
 	"github.com/PerHac13/vaultra/internal/restore"
 	"github.com/PerHac13/vaultra/internal/storage"
 	"github.com/PerHac13/vaultra/internal/storage/local"
+	"github.com/PerHac13/vaultra/internal/storage/s3"
 )
 
 
@@ -96,11 +97,26 @@ func New(ctx context.Context, cfgFile string) (*App, error) {
 	switch cfg.Storage.Type {
 	case "local":
 		basePath := getMapString(cfg.Storage.Config, "base_path", "./backups")
-		s, err := local.NewLocalStorage(basePath)
+		s, err := local.New(basePath)
 		if err != nil {
 			return nil, fmt.Errorf("initialize local storage: %w", err)
 		}
 		stor = s
+	case "s3":
+		s3Config := s3.Config{
+			Bucket:          getMapString(cfg.Storage.Config, "bucket", ""),
+			Region:          getMapString(cfg.Storage.Config, "region", "us-east-1"),
+			AccessKeyID:     getMapString(cfg.Storage.Config, "access_key_id", ""),
+			SecretAccessKey: getMapString(cfg.Storage.Config, "secret_access_key", ""),
+			Prefix:          getMapString(cfg.Storage.Config, "prefix", "vaultra/backups/"),
+			Endpoint:        getMapString(cfg.Storage.Config, "endpoint", ""),
+			DisableSSL:      getMapBool(cfg.Storage.Config, "disable_ssl", false),
+		}
+		s3Storage, err := s3.New(logger.Logger, s3Config)
+		if err != nil {
+			return nil, fmt.Errorf("create s3 storage: %w", err)
+		}
+		stor = s3Storage
 	default:
 		return nil, fmt.Errorf("unsupported storage type: %s", cfg.Storage.Type)
 	}
@@ -121,27 +137,6 @@ func New(ctx context.Context, cfgFile string) (*App, error) {
 		restoreEngine: restoreEngine,
 		repository: repo,
 	}, nil
-}
-
-func getMapString(m map[string]interface{}, key, defaultValue string) string {
-	if val, ok := m[key]; ok {
-		if strVal, ok := val.(string); ok {
-			return strVal
-		}
-	}
-	return defaultValue
-}
-
-func getMapInt(m map[string]interface{}, key string, defaultValue int) int {
-	if val, ok := m[key]; ok {
-		switch v := val.(type) {
-		case int:
-			return v
-		case float64:
-			return int(v)
-		}
-	}
-	return defaultValue
 }
 
 func (a *App) Logger() *logging.Logger {
