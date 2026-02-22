@@ -1,0 +1,38 @@
+app:
+  name: "S3 Backup"
+  log_level: info
+
+database:
+  type: postgres
+  config:
+    host: localhost
+    port: 5432
+    user: vaultra
+    password: vaultra_dev_pass
+    database: vaultra_test
+    ssl_mode: disable
+
+storage:
+  type: s3
+  config:
+    bucket: my-vaultra-backups
+    region: us-east-1
+    # Use environment variables for credentials!
+    # export AWS_ACCESS_KEY_ID=your_key
+    # export AWS_SECRET_ACCESS_KEY=your_secret
+    # Or for testing with localstack:
+    # export AWS_ACCESS_KEY_ID=test
+    # export AWS_SECRET_ACCESS_KEY=test
+    prefix: vaultra/backups/
+    # For localstack testing:
+    # endpoint: http://localhost:4566
+    # disable_ssl: true
+
+compression:
+  algorithm: gzip
+  level: 6
+
+backup:
+  retention_days: 30
+  full_backup:
+    enabled: true
