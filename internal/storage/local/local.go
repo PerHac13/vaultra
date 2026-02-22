@@ -10,7 +10,7 @@ import (
 	"github.com/PerHac13/vaultra/internal/storage"
 )
 
-func NewLocalStorage(basePath string) (*LocalStorage, error) {
+func New(basePath string) (*LocalStorage, error) {
 	if err := os.MkdirAll(basePath, 0755); err != nil {
 		return nil, fmt.Errorf("create base path: %w", err)
 	}
