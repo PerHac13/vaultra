@@ -6,6 +6,7 @@ type ConfigType struct {
 	Storage       StorageConfig     `yaml:"storage"`
 	Compression   CompressionConfig `yaml:"compression"`
 	Backup        BackupConfig      `yaml:"backup"`
+	Observability  ObservabilityConfig `yaml:"observability"`
 }
 
 type AppConfig struct {
@@ -35,4 +36,8 @@ type BackupConfig struct {
 
 type FullBackupConfig struct {
 	Enabled   bool   `yaml:"enabled"`
+}
+
+type ObservabilityConfig struct {
+	Config map[string]interface{} `yaml:"config"`
 }

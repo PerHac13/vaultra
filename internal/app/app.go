@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/PerHac13/vaultra/internal/backup"
 	"github.com/PerHac13/vaultra/internal/config"
@@ -12,6 +13,7 @@ import (
 	"github.com/PerHac13/vaultra/internal/db/mysql"
 	"github.com/PerHac13/vaultra/internal/db/postgres"
 	"github.com/PerHac13/vaultra/internal/logging"
+	"github.com/PerHac13/vaultra/internal/observability"
 	"github.com/PerHac13/vaultra/internal/repository"
 	"github.com/PerHac13/vaultra/internal/repository/inmemory"
 	"github.com/PerHac13/vaultra/internal/restore"
@@ -30,9 +32,16 @@ type App struct {
 	backupEngine *backup.Engine
 	restoreEngine *restore.Engine
 	repository repository.BackupRepository
+	metricsServer *observability.MetricsServer
+	metrics       *observability.Metrics
+	startTime      time.Time
+	databaseType   string
+	storageType	   string
 }
 
 func New(ctx context.Context, cfgFile string) (*App, error) {
+	startTime := time.Now()
+
 	parser := config.NewParser()
 	cfg, err := parser.ParseFile(cfgFile)
 	if err != nil {
@@ -50,8 +59,20 @@ func New(ctx context.Context, cfgFile string) (*App, error) {
 	logger = logging.NewLogger(logLevel, nil)
 	logger.Info("Configuration loaded", "name", cfg.App.Name)
 
+	// Initialize metrics and its server
+	metrics := observability.NewMetrics()
+	observability.RecordConfigLoadMetrics(metrics, time.Since(startTime))
+
+	metricsPort := getMapInt(cfg.Observability.Config, "metrics_port", 9090)
+	metricsServer := observability.NewMetricsServer(logger.Logger, metricsPort)
+
+	if err := metricsServer.Start(ctx); err != nil {
+		return nil, fmt.Errorf("start metrics server: %w", err)
+	}
+
 	// Initialize database adapter based on config
 	var database db.Database
+	databaseType := cfg.Database.Type
 	switch cfg.Database.Type {
 	case "postgres":
 		pgConfig := postgres.Config{
@@ -94,6 +115,7 @@ func New(ctx context.Context, cfgFile string) (*App, error) {
 
 	// Initialize storage adapter based on config
 	var stor storage.Storage
+	storageType := cfg.Storage.Type
 	switch cfg.Storage.Type {
 	case "local":
 		basePath := getMapString(cfg.Storage.Config, "base_path", "./backups")
@@ -128,7 +150,7 @@ func New(ctx context.Context, cfgFile string) (*App, error) {
 	backupEngine := backup.New(logger.Logger, database, stor, repo)
 	restoreEngine := restore.New(logger.Logger, database, stor, repo)
 
-	return &App{
+	app := &App{
 		logger: logger,
 		config: cfg,
 		database: database,
@@ -136,7 +158,26 @@ func New(ctx context.Context, cfgFile string) (*App, error) {
 		backupEngine: backupEngine,
 		restoreEngine: restoreEngine,
 		repository: repo,
-	}, nil
+		metricsServer: metricsServer,
+		metrics: metrics,
+		startTime: startTime,
+		databaseType: databaseType,
+		storageType: storageType,
+	}
+
+	// Start recording uptime metric
+	go app.recordUptime()
+
+	return app, nil
+}
+
+func (a *App) recordUptime() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		a.metrics.AppUptimeSeconds.Set(time.Since(a.startTime).Seconds())
+	} 
 }
 
 func (a *App) Logger() *logging.Logger {
@@ -159,7 +200,16 @@ func (a *App) BackupRepository() repository.BackupRepository {
 	return a.repository;
 }
 
+func (a *App) Metrics() *observability.Metrics {
+	return a.metrics
+}
+
 func (a *App) Close(ctx context.Context) error {
 	a.logger.Info("Shutting down application")
+	if a.metricsServer != nil {
+		if err := a.metricsServer.Stop(); err != nil {
+			a.logger.Error("Failed to stop metrics server", "error", err)
+		}
+	}
 	return nil
 }
