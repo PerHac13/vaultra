@@ -147,8 +147,9 @@ func New(ctx context.Context, cfgFile string) (*App, error) {
 	repo := inmemory.New()
 
 	// Initialize backup and restore engines
-	backupEngine := backup.New(logger.Logger, database, stor, repo)
-	restoreEngine := restore.New(logger.Logger, database, stor, repo)
+	backupEngine := backup.New(logger.Logger, database, stor, repo, metrics, databaseType, storageType)
+	restoreEngine := restore.New(logger.Logger, database, stor, repo, metrics, databaseType, storageType)
+
 
 	app := &App{
 		logger: logger,
