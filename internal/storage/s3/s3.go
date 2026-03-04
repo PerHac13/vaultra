@@ -6,7 +6,9 @@ import (
 	"io"
 	"log/slog"
 	"strings"
+	"time"
 
+	"github.com/PerHac13/vaultra/internal/observability"
 	"github.com/PerHac13/vaultra/internal/storage"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -20,6 +22,7 @@ type S3Storage struct {
 	client     *s3.Client
 	uploader   *manager.Uploader
 	downloader *manager.Downloader
+	metrics    *observability.Metrics
 }
 
 func New(logger *slog.Logger, cfg Config) (*S3Storage, error) {
@@ -68,38 +71,83 @@ func New(logger *slog.Logger, cfg Config) (*S3Storage, error) {
 	}, nil
 }
 
+// SetMetrics sets the metrics instance for recording
+func (s *S3Storage) SetMetrics(metrics *observability.Metrics) {
+	s.metrics = metrics
+}
+
 func (s *S3Storage) Upload(ctx context.Context, path string, data io.Reader) error {
-	s.logger.Info("Uploading backup to S3","bucker", s.config.Bucket, "path", path)
+	startTime := time.Now()
+
+	s.logger.Info("Uploading backup to S3", "bucket", s.config.Bucket, "path", path)
 
 	fullPath := s.config.Prefix + path
 
-	result , err := s.uploader.Upload(ctx, &s3.PutObjectInput{
-		Bucket: &s.config.Bucket,
-		Key:    &fullPath,
-		Body:   data,
+	// Wrap reader to count bytes
+	var bytesUploaded int64
+	countingReader := &countingReader{
+		reader: data,
+		count:  &bytesUploaded,
+	}
+
+	result, err := s.uploader.Upload(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(s.config.Bucket),
+		Key:    aws.String(fullPath),
+		Body:   countingReader,
 	})
 	if err != nil {
+		s.logger.Error("Failed to upload to S3", "error", err)
 		return fmt.Errorf("failed to upload to S3: %w", err)
 	}
-	s.logger.Info("Upload successful", "location", result.Location)
+
+	duration := time.Since(startTime).Seconds()
+
+	s.logger.Info("Upload successful",
+		"location", result.Location,
+		"bytes", bytesUploaded,
+		"duration_seconds", duration,
+	)
+
+	// Record metrics
+	if s.metrics != nil {
+		s.metrics.StorageUploadBytesTotal.WithLabelValues("s3").Add(float64(bytesUploaded))
+		s.metrics.StorageUploadDurationSeconds.WithLabelValues("s3").Observe(duration)
+	}
+
 	return nil
 }
 
 func (s *S3Storage) Download(ctx context.Context, path string) (io.ReadCloser, error) {
+	startTime := time.Now()
+
 	s.logger.Info("Downloading backup from S3", "bucket", s.config.Bucket, "path", path)
 
 	fullPath := s.config.Prefix + path
 
 	buf := manager.NewWriteAtBuffer([]byte{})
 	n, err := s.downloader.Download(ctx, buf, &s3.GetObjectInput{
-		Bucket: &s.config.Bucket,
-		Key:    &fullPath,
+		Bucket: aws.String(s.config.Bucket),
+		Key:    aws.String(fullPath),
 	})
 
 	if err != nil {
+		s.logger.Error("Failed to download from S3", "error", err)
 		return nil, fmt.Errorf("failed to download from S3: %w", err)
 	}
-	s.logger.Info("Download successful", "bytes_downloaded", n)
+
+	duration := time.Since(startTime).Seconds()
+
+	s.logger.Info("Download successful",
+		"bytes_downloaded", n,
+		"duration_seconds", duration,
+	)
+
+	// Record metrics
+	if s.metrics != nil {
+		s.metrics.StorageDownloadBytesTotal.WithLabelValues("s3").Add(float64(n))
+		s.metrics.StorageDownloadDurationSeconds.WithLabelValues("s3").Observe(duration)
+	}
+
 	return io.NopCloser(strings.NewReader(string(buf.Bytes()))), nil
 }
 
@@ -110,25 +158,26 @@ func (s *S3Storage) List(ctx context.Context, prefix string) ([]storage.BackupIn
 
 	var backups []storage.BackupInfo
 	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
-		Bucket: &s.config.Bucket,
-		Prefix: &fullPrefix,
+		Bucket: aws.String(s.config.Bucket),
+		Prefix: aws.String(fullPrefix),
 	})
 
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
+			s.logger.Error("Failed to list objects in S3", "error", err)
 			return nil, fmt.Errorf("failed to list objects in S3: %w", err)
 		}
 
 		for _, obj := range page.Contents {
 			backups = append(backups, storage.BackupInfo{
-				Path: strings.TrimPrefix(*obj.Key, s.config.Prefix),
-				Size: *obj.Size,
-				LastModified: *obj.LastModified,
+				Path:         strings.TrimPrefix(aws.ToString(obj.Key), s.config.Prefix),
+				Size:         aws.ToInt64(obj.Size),
+				LastModified: aws.ToTime(obj.LastModified),
 			})
 		}
 	}
-	
+
 	s.logger.Info("List successful", "backup_count", len(backups))
 	return backups, nil
 }
@@ -143,8 +192,20 @@ func (s *S3Storage) Delete(ctx context.Context, path string) error {
 		Key:    aws.String(fullPath),
 	})
 	if err != nil {
+		s.logger.Error("Failed to delete object from S3", "error", err)
 		return fmt.Errorf("failed to delete object from S3: %w", err)
 	}
+
 	s.logger.Info("Delete successful")
 	return nil
+}
+type countingReader struct {
+	reader io.Reader
+	count  *int64
+}
+
+func (cr *countingReader) Read(p []byte) (int, error) {
+	n, err := cr.reader.Read(p)
+	*cr.count += int64(n)
+	return n, err
 }
