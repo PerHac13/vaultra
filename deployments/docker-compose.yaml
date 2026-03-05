@@ -1,13 +1,14 @@
-version: "3.9"
+version: "3.8"
 
 services:
+  # PostgreSQL Database
   postgres:
-    image: postgres:16-alpine
+    image: postgres:15-alpine
     container_name: vaultra-postgres
     environment:
+      POSTGRES_DB: vaultra_test
       POSTGRES_USER: vaultra
       POSTGRES_PASSWORD: vaultra_dev_pass
-      POSTGRES_DB: vaultra_test
     ports:
       - "5432:5432"
     volumes:
@@ -17,15 +18,18 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - vaultra_net
 
+  # MySQL Database
   mysql:
     image: mysql:8.0
     container_name: vaultra-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: root_pass
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: vaultra_test
       MYSQL_USER: vaultra
       MYSQL_PASSWORD: vaultra_dev_pass
-      MYSQL_DATABASE: vaultra_test
     ports:
       - "3306:3306"
     volumes:
@@ -35,13 +39,16 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - vaultra_net
 
+  # MongoDB
   mongodb:
-    image: mongo:7.0
+    image: mongo:6
     container_name: vaultra-mongodb
     environment:
-      MONGO_INITDB_ROOT_USERNAME: vaultra
-      MONGO_INITDB_ROOT_PASSWORD: vaultra_dev_pass
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin_password
       MONGO_INITDB_DATABASE: vaultra_test
     ports:
       - "27017:27017"
@@ -52,8 +59,123 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - vaultra_net
+
+  # LocalStack - AWS S3 Mock
+  localstack:
+    image: localstack/localstack:latest
+    container_name: vaultra-localstack
+    ports:
+      - "4566:4566"
+      - "4571:4571"
+    environment:
+      SERVICES: s3
+      DEBUG: 0
+      DATA_DIR: /tmp/localstack/data
+      DOCKER_HOST: unix:///var/run/docker.sock
+    volumes:
+      - localstack_data:/tmp/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "awslocal", "s3", "ls"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vaultra_net
+
+  # Prometheus - Metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: vaultra-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./configs/prometheus.yaml:/etc/prometheus/prometheus.yml
+      - ./configs/alerts.yaml:/etc/prometheus/alerts.yaml
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    environment:
+      - TZ=UTC
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vaultra_net
+    depends_on:
+      - postgres
+      - mysql
+      - mongodb
+
+  # Grafana - Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: vaultra-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin_password
+      GF_INSTALL_PLUGINS: grafana-worldmap-panel
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./configs/grafana/provisioning:/etc/grafana/provisioning
+      - ./configs/grafana/dashboards:/var/lib/grafana/dashboards
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vaultra_net
+    depends_on:
+      - prometheus
+
+  # Alertmanager - Alert routing
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: vaultra-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./configs/alertmanager.yaml:/etc/alertmanager/config.yml
+      - alertmanager_data:/alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/config.yml"
+      - "--storage.path=/alertmanager"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9093/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vaultra_net
 
 volumes:
   postgres_data:
+    driver: local
   mysql_data:
+    driver: local
   mongodb_data:
+    driver: local
+  localstack_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  alertmanager_data:
+    driver: local
+
+networks:
+  vaultra_net:
+    driver: bridge
