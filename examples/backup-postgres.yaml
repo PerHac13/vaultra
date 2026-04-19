@@ -11,12 +11,18 @@ database:
     password: postgrespassword
     database: student_portal_new
     ssl_mode: disable
+    connection_timeout_secs: 30
 
 storage:
   type: local
   config:
-    base_path: ./backups/postgres
+    base_path: /backups/postgres
 
 compression:
   algorithm: gzip
   level: 6
+
+backup:
+  retention_days: 30
+  full_backup:
+    enabled: true
